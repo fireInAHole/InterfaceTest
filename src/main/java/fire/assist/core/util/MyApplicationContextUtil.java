@@ -1,4 +1,4 @@
-package fire.assist.core;
+package fire.assist.core.util;
 
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;

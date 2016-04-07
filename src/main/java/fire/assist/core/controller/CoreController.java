@@ -1,10 +1,14 @@
-package fire.assist.core;
+package fire.assist.core.controller;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import fire.assist.core.service.InterfaceTestService;
+import fire.assist.core.util.MyApplicationContextUtil;
+import fire.assist.core.vo.InvokeResult;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.CollectionUtils;
@@ -20,10 +24,7 @@ import java.io.*;
 import java.lang.reflect.Method;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 
 /**
  * Created by zhangcongliang on 16/3/21.
@@ -31,6 +32,11 @@ import java.util.List;
 @Controller
 @RequestMapping(value ="/interfaceTest")
 public class CoreController {
+
+    @Autowired
+    private InterfaceTestService interfaceTestService;
+
+
     @RequestMapping(value = "/findTestPage", method = RequestMethod.GET)
     public String findTestPage(HttpServletRequest request, Model model) {
         try {
@@ -443,5 +449,50 @@ public class CoreController {
                 writer.close();
             }
         }
+    }
+
+
+
+    @RequestMapping(value = "invokeAll",method = RequestMethod.POST)
+    @ResponseBody
+    public String executeAllTestAutoly(HttpServletRequest request){
+        //获取类名
+        List<String> clazzList = interfaceTestService.getClazzName(request.getContextPath());
+        Map<String,List<String>> clazzMethodMap = new HashMap<String,List<String>>();
+        for(String clazz : clazzList){
+            List<String> methodList = interfaceTestService.getMethodListByClazzName(clazz);
+            if(CollectionUtils.isEmpty(methodList)){
+                continue;
+            }
+            clazzMethodMap.put(clazz, methodList);
+        }
+
+        //TODO 获取原执行结果
+        String orinResult = "";
+        //执行结果
+        List<InvokeResult> invokeResults = new ArrayList<InvokeResult>();
+
+        //执行
+        for(Map.Entry<String,List<String>> entry : clazzMethodMap.entrySet()){
+            String clazzName = entry.getKey();
+            List<String> methodList = entry.getValue();
+
+            for(String methodName : methodList){
+                List<Object> paramList = interfaceTestService.getParamByMethod(clazzName,methodName);
+                String result = interfaceTestService.getInvokeResults(clazzName, methodName, paramList);
+
+                InvokeResult invokeResult = new InvokeResult();
+                invokeResult.setClazzName(clazzName);
+                invokeResult.setMethodName(methodName);
+                invokeResult.setExecuteParams(JSONObject.toJSONString(paramList));
+                invokeResult.setOrginResults(orinResult);
+                invokeResult.setExecuteResults(result);
+                //result or orinResult is null?
+                invokeResult.setIsEqual(result.equals(orinResult) ? 1 : 0);
+                invokeResults.add(invokeResult);
+            }
+        }
+
+        return JSONObject.toJSONString(invokeResults);
     }
 }
