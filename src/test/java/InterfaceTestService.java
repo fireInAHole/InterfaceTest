@@ -20,18 +20,17 @@ public class InterfaceTestService {
     @Test
     public void testGetClazzName(){
 //        this.getClass().getResource("").getPath();
-        String filePath = "/Users/zhangcongliang/IdeaProjects/activity/activity-server/src/main/webapp/";
-        filePath = filePath.endsWith("/") ? filePath.substring(0, filePath.length() - 1) : filePath;
-        print(filePath);
-        List<String> clazzList = interfaceTestService.getClazzName(filePath);
-        print(clazzList);
-
-        String clazzName = clazzList.get(0);
-        String methodName = interfaceTestService.getMethodListByClazzName(clazzName).get(0);
-        print(methodName);
-
-        List<Object> params = interfaceTestService.getParamByMethod(clazzName,methodName);
-        print(params);
+//        filePath = filePath.endsWith("/") ? filePath.substring(0, filePath.length() - 1) : filePath;
+//        print(filePath);
+//        List<String> clazzList = interfaceTestService.getClazzName(filePath);
+//        print(clazzList);
+//
+//        String clazzName = clazzList.get(0);
+//        String methodName = interfaceTestService.getMethodListByClazzName(clazzName).get(0);
+//        print(methodName);
+//
+//        List<Object> params = interfaceTestService.getParamByMethod(clazzName,methodName);
+//        print(params);
 
     }
 }

@@ -7,6 +7,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import fire.assist.core.service.InterfaceTestService;
 import fire.assist.core.util.MyApplicationContextUtil;
+import fire.assist.core.vo.InvokeParamAndResult;
 import fire.assist.core.vo.InvokeResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -25,6 +26,8 @@ import java.lang.reflect.Method;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Created by zhangcongliang on 16/3/21.
@@ -453,12 +456,60 @@ public class CoreController {
 
 
 
-    @RequestMapping(value = "invokeAll",method = RequestMethod.POST)
+    @RequestMapping(value = "/addParam", method = RequestMethod.POST)
+    @ResponseBody
+    public String addParam(HttpServletRequest request, HttpServletResponse response){
+        String javaClassName = request.getParameter("javaClassName");
+
+        Class cs = null;
+        try {
+            cs = Class.forName(javaClassName);
+        }catch (ClassNotFoundException e){
+        }
+        String javaMethodName = request.getParameter("javaMethodName");
+        String[] paramValues = request.getParameterValues("paramValues");
+        String[] paramClassNames = request.getParameterValues("paramClassNames");
+
+        Object[] args = new Object[paramClassNames.length];
+        for(int i=0;i<paramClassNames.length;i++) {
+            args[i] = getObject(paramClassNames[i],paramValues[i]);
+        }
+
+        Object objEntity = MyApplicationContextUtil.getContext().getBean(getLowerString(javaClassName));
+
+        Method[] methods = cs.getMethods();
+        Object resultObj = new Object();
+        try{
+            for (Method method:methods) {
+                if(method.getName().equals(javaMethodName)){
+                    resultObj = method.invoke(objEntity, args);
+                }
+            }
+        }catch (Exception e){
+            resultObj = e;
+        }
+
+        InvokeParamAndResult invokeParamAndResult = new InvokeParamAndResult();
+        invokeParamAndResult.setClassName(javaClassName);
+        invokeParamAndResult.setMethodName(javaMethodName);
+        invokeParamAndResult.setParam(JSONObject.toJSONString(paramClassNames));
+        invokeParamAndResult.setParamValue(JSONObject.toJSONString(paramValues));
+        //TODO 未来对结果要做截断，可能会超长
+        invokeParamAndResult.setInvokeResult(JSONObject.toJSONString(resultObj));
+        interfaceTestService.insert(invokeParamAndResult);
+
+        return JSON.toJSONString("ok");
+    }
+
+    final int cores = Runtime.getRuntime().availableProcessors();
+    private ExecutorService executors = Executors.newFixedThreadPool(cores + 2);
+
+    @RequestMapping(value = "/invokeAll",method = RequestMethod.POST)
     @ResponseBody
     public String executeAllTestAutoly(HttpServletRequest request){
         //获取类名
-        List<String> clazzList = interfaceTestService.getClazzName(request.getContextPath());
-        Map<String,List<String>> clazzMethodMap = new HashMap<String,List<String>>();
+        List<String> clazzList = interfaceTestService.getClazzName(request.getSession().getServletContext().getRealPath(""));
+        Map<String,List<String>> clazzMethodMap = new HashMap<>();
         for(String clazz : clazzList){
             List<String> methodList = interfaceTestService.getMethodListByClazzName(clazz);
             if(CollectionUtils.isEmpty(methodList)){
@@ -467,28 +518,36 @@ public class CoreController {
             clazzMethodMap.put(clazz, methodList);
         }
 
-        //TODO 获取原执行结果
-        String orinResult = "";
         //执行结果
-        List<InvokeResult> invokeResults = new ArrayList<InvokeResult>();
+        List<InvokeResult> invokeResults = new ArrayList<>();
 
+        InvokeParamAndResult invokeParamAndResult= new InvokeParamAndResult();
         //执行
         for(Map.Entry<String,List<String>> entry : clazzMethodMap.entrySet()){
             String clazzName = entry.getKey();
             List<String> methodList = entry.getValue();
-
+            invokeParamAndResult.setClassName(clazzName);
             for(String methodName : methodList){
-                List<Object> paramList = interfaceTestService.getParamByMethod(clazzName,methodName);
-                String result = interfaceTestService.getInvokeResults(clazzName, methodName, paramList);
+                invokeParamAndResult.setMethodName(methodName);
+                InvokeParamAndResult record = interfaceTestService.getByClassAndMethodName(invokeParamAndResult);
 
                 InvokeResult invokeResult = new InvokeResult();
                 invokeResult.setClazzName(clazzName);
                 invokeResult.setMethodName(methodName);
+                if(null == record){
+                    invokeResult.setIsRecordExists(InvokeResult.RECODE_NOT_EXISTS);
+                    invokeResults.add(invokeResult);
+                    continue;
+                }
+                List<Object> paramList = interfaceTestService.getParamByMethod(clazzName,methodName);
+                String result = interfaceTestService.getInvokeResults(clazzName, methodName, paramList);
+
                 invokeResult.setExecuteParams(JSONObject.toJSONString(paramList));
-                invokeResult.setOrginResults(orinResult);
+                invokeResult.setOrginResults(record.getInvokeResult());
                 invokeResult.setExecuteResults(result);
-                //result or orinResult is null?
-                invokeResult.setIsEqual(result.equals(orinResult) ? 1 : 0);
+                //TODO 这个判等有NullPointer风险
+                invokeResult.setIsEqual(result.equals(record.getInvokeResult()) ? InvokeResult.RESULT_EQUAL : InvokeResult.RESULT_NOT_EQUAL);
+                invokeResult.setIsRecordExists(InvokeResult.RECODE_EXISTS);
                 invokeResults.add(invokeResult);
             }
         }

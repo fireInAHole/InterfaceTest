@@ -1,5 +1,7 @@
 package fire.assist.core.service;
 
+import fire.assist.core.vo.InvokeParamAndResult;
+
 import java.util.List;
 
 /**
@@ -33,4 +35,18 @@ public interface InterfaceTestService {
      * @return
      */
     String getInvokeResults(String clazzName,String methodName,List<Object> params);
+
+    /**
+     * 插入数据库
+     * @param invokeParamAndResult
+     * @return
+     */
+    int insert(InvokeParamAndResult invokeParamAndResult);
+
+    /**
+     * 根据className+methodName查询得到该接口是否跑过记录
+     * @param invokeParamAndResult
+     * @return
+     */
+    InvokeParamAndResult getByClassAndMethodName(InvokeParamAndResult invokeParamAndResult);
 }
